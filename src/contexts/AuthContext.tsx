@@ -29,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userProfile, setUserProfile] = useState<AppUser | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fetchingProfile, setFetchingProfile] = useState(false) // Prevent multiple fetches
 
   // Add timeout for loading state
   useEffect(() => {
@@ -49,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('🔄 AuthContext: Initial session retrieved:', session?.user?.id || 'No user')
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) {
+      if (session?.user && !fetchingProfile) {
         console.log('🔄 AuthContext: User found, fetching profile...')
         fetchUserProfile(session.user.id)
       } else {
@@ -69,14 +70,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session)
       setUser(session?.user ?? null)
 
-      if (event === 'SIGNED_IN' && session?.user) {
+      if (event === 'SIGNED_IN' && session?.user && !fetchingProfile) {
         console.log('User signed in, fetching profile...')
         await fetchUserProfile(session.user.id)
       } else if (event === 'SIGNED_OUT') {
         console.log('User signed out')
         setUserProfile(null)
+        setFetchingProfile(false)
         setLoading(false)
-      } else if (session?.user) {
+      } else if (session?.user && !fetchingProfile) {
         await fetchUserProfile(session.user.id)
       } else {
         setUserProfile(null)
@@ -88,6 +90,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [])
 
   const fetchUserProfile = async (userId: string) => {
+    if (fetchingProfile) {
+      console.log('🔄 AuthContext: Already fetching profile, skipping...')
+      return
+    }
+
+    setFetchingProfile(true)
     const fetchTimeout = setTimeout(() => {
       console.warn('⏰ AuthContext: Profile fetch timeout, using fallback')
       createFallbackProfile()
@@ -124,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createFallbackProfile()
     } finally {
       console.log('🔄 AuthContext: Setting loading to false')
+      setFetchingProfile(false)
       setLoading(false)
     }
   }
@@ -167,6 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('❌ AuthContext: Error creating fallback profile:', error)
     } finally {
+      setFetchingProfile(false)
       setLoading(false)
     }
   }

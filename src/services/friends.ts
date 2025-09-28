@@ -1,6 +1,28 @@
 import { supabase, FriendWithProfile } from '@/lib/supabase'
 
 export const friendsService = {
+  // Debug function to see what users exist
+  async debugListUsers() {
+    try {
+      console.log('🔍 Debug: Listing all users in database...')
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, display_name, user_id, email')
+        .limit(10)
+
+      if (error) {
+        console.error('❌ Debug error:', error)
+        return { data: [], error }
+      }
+
+      console.log('📋 All users in database:', data)
+      return { data: data || [], error: null }
+    } catch (error) {
+      console.error('❌ Debug list users error:', error)
+      return { data: [], error }
+    }
+  },
+
   async getFriends() {
     try {
       const { data, error } = await supabase
@@ -30,24 +52,62 @@ export const friendsService = {
     try {
       console.log('🔍 Searching for user with ID:', userId)
 
-      const { data, error } = await supabase
+      // First try exact match
+      let { data, error } = await supabase
         .from('users')
         .select('id, display_name, avatar_url, user_id, status_message')
         .eq('user_id', userId)
-        .maybeSingle() // Use maybeSingle instead of single to avoid errors when no results
+        .maybeSingle()
 
       if (error) {
         console.error('🚨 Database error in search:', error)
-        throw error
+        return { data: null, error }
       }
 
-      if (!data) {
-        console.log('📭 No user found with ID:', userId)
-        return { data: null, error: { message: `No user found with ID: ${userId}` } }
+      if (data) {
+        console.log('✅ User found (exact match):', data)
+        return { data, error: null }
       }
 
-      console.log('✅ User found:', data)
-      return { data, error: null }
+      // Try case insensitive search
+      console.log('🔍 Trying case insensitive search...')
+      const { data: caseInsensitiveData, error: caseError } = await supabase
+        .from('users')
+        .select('id, display_name, avatar_url, user_id, status_message')
+        .ilike('user_id', userId)
+        .maybeSingle()
+
+      if (caseError) {
+        console.error('🚨 Database error in case insensitive search:', caseError)
+        return { data: null, error: caseError }
+      }
+
+      if (caseInsensitiveData) {
+        console.log('✅ User found (case insensitive):', caseInsensitiveData)
+        return { data: caseInsensitiveData, error: null }
+      }
+
+      // Try wildcard search for partial matches
+      console.log('🔍 Trying wildcard search...')
+      const { data: wildcardData, error: wildcardError } = await supabase
+        .from('users')
+        .select('id, display_name, avatar_url, user_id, status_message')
+        .ilike('user_id', `%${userId}%`)
+        .limit(5)
+
+      if (wildcardError) {
+        console.error('🚨 Database error in wildcard search:', wildcardError)
+        return { data: null, error: wildcardError }
+      }
+
+      if (wildcardData && wildcardData.length > 0) {
+        console.log('✅ Found partial matches:', wildcardData)
+        // Return the first match for now, could be improved to show multiple options
+        return { data: wildcardData[0], error: null }
+      }
+
+      console.log('📭 No user found with any search method for ID:', userId)
+      return { data: null, error: { message: `No user found with ID: ${userId}. Please check the spelling and try again.` } }
     } catch (error) {
       console.error('❌ Search user error:', error)
       return { data: null, error }

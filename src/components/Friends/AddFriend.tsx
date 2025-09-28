@@ -99,6 +99,15 @@ const AddFriend = ({ onBack, onAddFriend }: AddFriendProps) => {
     }
   };
 
+  const handleDebugUsers = async () => {
+    console.log('🔍 Debug: Fetching all users...');
+    const { data } = await friendsService.debugListUsers();
+    toast({
+      title: "사용자 목록 (콘솔 확인)",
+      description: `총 ${data.length}명의 사용자가 있습니다. 콘솔을 확인하세요.`,
+    });
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -146,6 +155,14 @@ const AddFriend = ({ onBack, onAddFriend }: AddFriendProps) => {
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {loading ? "추가 중..." : "친구 추가"}
+            </Button>
+
+            <Button
+              onClick={handleDebugUsers}
+              variant="outline"
+              className="w-full mt-2"
+            >
+              디버그: 사용자 목록 보기
             </Button>
           </div>
 
