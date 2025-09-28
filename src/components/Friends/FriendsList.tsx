@@ -40,9 +40,11 @@ const mockFriends: Friend[] = [
 
 interface FriendsListProps {
   onStartChat: (friendId: string, friendName: string) => void;
+  onAddFriend: () => void;
+  onFriendProfile: (friend: Friend) => void;
 }
 
-const FriendsList = ({ onStartChat }: FriendsListProps) => {
+const FriendsList = ({ onStartChat, onAddFriend, onFriendProfile }: FriendsListProps) => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredFriends = mockFriends.filter(friend =>
@@ -54,7 +56,7 @@ const FriendsList = ({ onStartChat }: FriendsListProps) => {
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border">
         <h1 className="text-xl font-bold">친구</h1>
-        <Button variant="ghost" size="sm">
+        <Button variant="ghost" size="sm" onClick={onAddFriend}>
           <UserPlus size={20} />
         </Button>
       </div>
@@ -77,7 +79,8 @@ const FriendsList = ({ onStartChat }: FriendsListProps) => {
         {filteredFriends.map((friend) => (
           <div
             key={friend.id}
-            className="flex items-center p-4 border-b border-border hover:bg-muted/50 transition-colors"
+            className="flex items-center p-4 border-b border-border hover:bg-muted/50 transition-colors cursor-pointer"
+            onClick={() => onFriendProfile(friend)}
           >
             <Avatar className="h-12 w-12">
               <AvatarImage src={friend.avatar} />
@@ -98,7 +101,10 @@ const FriendsList = ({ onStartChat }: FriendsListProps) => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onStartChat(friend.id, friend.name)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartChat(friend.id, friend.name);
+              }}
               className="text-primary hover:bg-yellow-light"
             >
               <MessageCircle size={18} />

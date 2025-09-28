@@ -83,13 +83,6 @@ const ChatRoom = ({ friendName, onBack }: ChatRoomProps) => {
           <ArrowLeft size={20} />
         </Button>
         
-        <Avatar className="h-10 w-10 mr-3">
-          <AvatarImage src="" />
-          <AvatarFallback className="bg-yellow-light text-foreground">
-            {friendName.charAt(0)}
-          </AvatarFallback>
-        </Avatar>
-        
         <h1 className="text-lg font-semibold">{friendName}</h1>
       </div>
 
@@ -98,8 +91,16 @@ const ChatRoom = ({ friendName, onBack }: ChatRoomProps) => {
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex ${message.isSent ? 'justify-end' : 'justify-start'}`}
+            className={`flex items-end space-x-2 ${message.isSent ? 'justify-end flex-row-reverse space-x-reverse' : 'justify-start'}`}
           >
+            {/* Profile Picture */}
+            <Avatar className="h-8 w-8 flex-shrink-0">
+              <AvatarImage src="" />
+              <AvatarFallback className="bg-yellow-light text-foreground text-xs">
+                {message.isSent ? '나' : friendName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            
             <div className="flex flex-col max-w-xs">
               <div
                 className={`px-4 py-2 rounded-2xl ${
@@ -110,7 +111,7 @@ const ChatRoom = ({ friendName, onBack }: ChatRoomProps) => {
               >
                 <p className="text-sm">{message.text}</p>
               </div>
-              <span className="text-xs text-muted-foreground mt-1 px-2">
+              <span className={`text-xs text-muted-foreground mt-1 px-2 ${message.isSent ? 'text-right' : 'text-left'}`}>
                 {message.timestamp}
               </span>
             </div>

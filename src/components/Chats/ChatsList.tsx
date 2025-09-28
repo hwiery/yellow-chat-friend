@@ -1,6 +1,9 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface Chat {
   id: string;
@@ -47,6 +50,18 @@ interface ChatsListProps {
 }
 
 const ChatsList = ({ onChatSelect }: ChatsListProps) => {
+  const [chats, setChats] = useState(mockChats);
+  const { toast } = useToast();
+
+  const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
+    e.stopPropagation();
+    setChats(chats.filter(chat => chat.id !== chatId));
+    toast({
+      title: "대화방 삭제",
+      description: "대화방이 삭제되었습니다."
+    });
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -56,11 +71,11 @@ const ChatsList = ({ onChatSelect }: ChatsListProps) => {
 
       {/* Chats List */}
       <div className="flex-1 overflow-y-auto">
-        {mockChats.map((chat) => (
+        {chats.map((chat) => (
           <div
             key={chat.id}
             onClick={() => onChatSelect(chat.id, chat.friendName)}
-            className="flex items-center p-4 border-b border-border hover:bg-muted/50 transition-colors cursor-pointer"
+            className="flex items-center p-4 border-b border-border hover:bg-muted/50 transition-colors cursor-pointer group"
           >
             <Avatar className="h-12 w-12">
               <AvatarImage src={chat.avatar} />
@@ -72,9 +87,19 @@ const ChatsList = ({ onChatSelect }: ChatsListProps) => {
             <div className="flex-1 ml-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium text-foreground">{chat.friendName}</h3>
-                <span className="text-xs text-muted-foreground">
-                  {chat.lastMessageTime}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-muted-foreground">
+                    {chat.lastMessageTime}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => handleDeleteChat(e, chat.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
               </div>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-sm text-muted-foreground truncate flex-1">
