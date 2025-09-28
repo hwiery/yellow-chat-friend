@@ -68,7 +68,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', userId)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Database error fetching user profile:', error)
+        // 사용자가 DB에 없다면 자동으로 생성 시도
+        if (error.code === 'PGRST116') {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const userIdForSearch = `yellowtalk_${Math.random().toString(36).substr(2, 9)}`
+            const { data: newUser, error: insertError } = await supabase
+              .from('users')
+              .insert({
+                id: user.id,
+                email: user.email!,
+                display_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+                user_id: userIdForSearch,
+                status_message: '',
+              })
+              .select()
+              .single()
+
+            if (!insertError && newUser) {
+              setUserProfile(newUser)
+              return
+            } else {
+              console.error('Failed to create user profile:', insertError)
+            }
+          }
+        }
+        throw error
+      }
       setUserProfile(data)
     } catch (error) {
       console.error('Error fetching user profile:', error)
@@ -89,19 +117,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          full_name: displayName,
+          display_name: displayName
+        }
+      }
     })
-
-    if (data.user && !error) {
-      // Create user profile
-      const userIdForSearch = `yellowtalk_${Math.random().toString(36).substr(2, 9)}`
-      await supabase.from('users').insert({
-        id: data.user.id,
-        email: data.user.email!,
-        display_name: displayName,
-        user_id: userIdForSearch,
-        status_message: '',
-      })
-    }
 
     return { data, error }
   }
