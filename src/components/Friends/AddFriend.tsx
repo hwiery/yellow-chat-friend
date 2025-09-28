@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { friendsService } from "@/services/friends";
 
 interface AddFriendProps {
   onBack: () => void;
@@ -12,9 +13,10 @@ interface AddFriendProps {
 
 const AddFriend = ({ onBack, onAddFriend }: AddFriendProps) => {
   const [friendId, setFriendId] = useState("");
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleAddFriend = () => {
+  const handleAddFriend = async () => {
     if (!friendId.trim()) {
       toast({
         title: "오류",
@@ -24,22 +26,48 @@ const AddFriend = ({ onBack, onAddFriend }: AddFriendProps) => {
       return;
     }
 
-    // Mock friend addition
-    const mockFriends = ["yellowtalk123", "user456", "friend789", "chat2024"];
-    
-    if (mockFriends.includes(friendId.toLowerCase())) {
+    try {
+      setLoading(true);
+      const { data, error } = await friendsService.addFriend(friendId.trim());
+
+      if (error) {
+        if (error.message === 'User not found') {
+          toast({
+            title: "친구 찾기 실패",
+            description: "존재하지 않는 아이디입니다.",
+            variant: "destructive"
+          });
+        } else if (error.message === 'Friendship already exists') {
+          toast({
+            title: "이미 친구입니다",
+            description: "이미 친구로 추가된 사용자입니다.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "친구 추가 실패",
+            description: "친구 추가 중 오류가 발생했습니다.",
+            variant: "destructive"
+          });
+        }
+        return;
+      }
+
       onAddFriend(friendId);
       toast({
         title: "친구 추가 완료",
         description: `${friendId}님을 친구로 추가했습니다.`
       });
       onBack();
-    } else {
+    } catch (error) {
+      console.error('Add friend error:', error);
       toast({
-        title: "친구 찾기 실패",
-        description: "존재하지 않는 아이디입니다.",
+        title: "친구 추가 실패",
+        description: "다시 시도해주세요.",
         variant: "destructive"
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -90,21 +118,21 @@ const AddFriend = ({ onBack, onAddFriend }: AddFriendProps) => {
               />
             </div>
 
-            <Button 
+            <Button
               onClick={handleAddFriend}
+              disabled={!friendId.trim() || loading}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={!friendId.trim()}
             >
-              친구 추가
+              {loading ? "추가 중..." : "친구 추가"}
             </Button>
           </div>
 
           <div className="mt-8 p-4 bg-muted/30 rounded-lg">
-            <h3 className="font-medium text-foreground mb-2">테스트용 아이디</h3>
+            <h3 className="font-medium text-foreground mb-2">친구 찾기 팁</h3>
             <p className="text-sm text-muted-foreground">
-              다음 아이디들로 테스트해보세요:
+              친구의 YellowTalk 아이디를 정확히 입력해주세요.
               <br />
-              yellowtalk123, user456, friend789, chat2024
+              아이디는 프로필에서 확인할 수 있습니다.
             </p>
           </div>
         </div>

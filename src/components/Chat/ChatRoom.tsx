@@ -2,65 +2,144 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Send, Smile } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { messagesService } from "@/services/messages";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
   id: string;
   text: string;
   timestamp: string;
   isSent: boolean;
+  senderName?: string;
+  senderAvatar?: string;
 }
-
-const mockMessages: Message[] = [
-  {
-    id: "1",
-    text: "안녕하세요! 오늘 어떻게 지내세요?",
-    timestamp: "오후 2:10",
-    isSent: false
-  },
-  {
-    id: "2", 
-    text: "안녕하세요! 잘 지내고 있어요 😊",
-    timestamp: "오후 2:12",
-    isSent: true
-  },
-  {
-    id: "3",
-    text: "다행이네요. 혹시 시간 되실 때 카페에서 만날까요?",
-    timestamp: "오후 2:15",
-    isSent: false
-  },
-  {
-    id: "4",
-    text: "좋아요! 몇 시에 만날까요?",
-    timestamp: "오후 2:18",
-    isSent: true
-  }
-];
 
 interface ChatRoomProps {
   friendName: string;
+  friendId?: string;
+  conversationId?: string;
   onBack: () => void;
 }
 
-const ChatRoom = ({ friendName, onBack }: ChatRoomProps) => {
+const ChatRoom = ({ friendName, friendId, conversationId, onBack }: ChatRoomProps) => {
   const [newMessage, setNewMessage] = useState("");
-  const [messages, setMessages] = useState(mockMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [currentConversationId, setCurrentConversationId] = useState(conversationId);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { user, userProfile } = useAuth();
+  const { toast } = useToast();
 
-  const handleSendMessage = () => {
-    if (newMessage.trim()) {
-      const message: Message = {
-        id: Date.now().toString(),
-        text: newMessage,
-        timestamp: new Date().toLocaleTimeString('ko-KR', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true 
-        }),
-        isSent: true
+  useEffect(() => {
+    if (currentConversationId) {
+      loadMessages();
+      // Set up real-time subscription
+      const subscription = messagesService.subscribeToMessages(currentConversationId, (newMessage) => {
+        const transformedMessage: Message = {
+          id: newMessage.id,
+          text: newMessage.content,
+          timestamp: new Date(newMessage.created_at).toLocaleTimeString('ko-KR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          }),
+          isSent: newMessage.sender_id === user?.id,
+          senderName: newMessage.sender_id === user?.id ? userProfile?.display_name : friendName
+        };
+
+        setMessages(prev => [...prev, transformedMessage]);
+      });
+
+      return () => {
+        subscription.unsubscribe();
       };
-      setMessages([...messages, message]);
+    } else if (friendId) {
+      // Create conversation if it doesn't exist
+      createConversation();
+    }
+  }, [currentConversationId, friendId, user?.id, userProfile, friendName]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const createConversation = async () => {
+    if (!friendId) return;
+
+    try {
+      const { data, error } = await messagesService.getOrCreateConversation(friendId);
+      if (error) throw error;
+
+      setCurrentConversationId(data.id);
+    } catch (error) {
+      console.error('Create conversation error:', error);
+      toast({
+        title: "대화방 생성 실패",
+        description: "대화방을 생성하는 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const loadMessages = async () => {
+    if (!currentConversationId) return;
+
+    try {
+      const { data, error } = await messagesService.getMessages(currentConversationId);
+      if (error) throw error;
+
+      const transformedMessages: Message[] = data.map((msg: any) => ({
+        id: msg.id,
+        text: msg.content,
+        timestamp: new Date(msg.created_at).toLocaleTimeString('ko-KR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }),
+        isSent: msg.sender_id === user?.id,
+        senderName: msg.sender_id === user?.id ? userProfile?.display_name : friendName,
+        senderAvatar: msg.sender?.avatar_url
+      }));
+
+      setMessages(transformedMessages);
+    } catch (error) {
+      console.error('Load messages error:', error);
+      toast({
+        title: "메시지 로드 실패",
+        description: "메시지를 불러오는 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !currentConversationId || sending) return;
+
+    try {
+      setSending(true);
+      const { error } = await messagesService.sendMessage(currentConversationId, newMessage.trim());
+
+      if (error) throw error;
+
       setNewMessage("");
+    } catch (error) {
+      console.error('Send message error:', error);
+      toast({
+        title: "메시지 전송 실패",
+        description: "메시지 전송 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    } finally {
+      setSending(false);
     }
   };
 
@@ -88,16 +167,25 @@ const ChatRoom = ({ friendName, onBack }: ChatRoomProps) => {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map((message) => (
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <p className="text-muted-foreground">메시지를 불러오는 중...</p>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex items-center justify-center py-8">
+            <p className="text-muted-foreground">첫 번째 메시지를 보내보세요!</p>
+          </div>
+        ) : (
+          messages.map((message) => (
           <div
             key={message.id}
             className={`flex items-end space-x-2 ${message.isSent ? 'justify-end flex-row-reverse space-x-reverse' : 'justify-start'}`}
           >
             {/* Profile Picture */}
             <Avatar className="h-8 w-8 flex-shrink-0">
-              <AvatarImage src="" />
+              <AvatarImage src={message.senderAvatar || (message.isSent ? userProfile?.avatar_url : "")} />
               <AvatarFallback className="bg-yellow-light text-foreground text-xs">
-                {message.isSent ? '나' : friendName.charAt(0)}
+                {message.isSent ? (userProfile?.display_name?.charAt(0) || '나') : friendName.charAt(0)}
               </AvatarFallback>
             </Avatar>
             
@@ -116,7 +204,9 @@ const ChatRoom = ({ friendName, onBack }: ChatRoomProps) => {
               </span>
             </div>
           </div>
-        ))}
+        ))
+        )}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
@@ -134,10 +224,10 @@ const ChatRoom = ({ friendName, onBack }: ChatRoomProps) => {
             className="flex-1"
           />
           
-          <Button 
+          <Button
             onClick={handleSendMessage}
+            disabled={!newMessage.trim() || sending}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
-            disabled={!newMessage.trim()}
           >
             <Send size={18} />
           </Button>

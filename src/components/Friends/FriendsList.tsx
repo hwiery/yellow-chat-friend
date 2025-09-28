@@ -2,41 +2,18 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, UserPlus, MessageCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { friendsService } from "@/services/friends";
+import { FriendWithProfile } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 interface Friend {
   id: string;
   name: string;
   statusMessage?: string;
   avatar?: string;
+  userId?: string;
 }
-
-const mockFriends: Friend[] = [
-  {
-    id: "1",
-    name: "김민수",
-    statusMessage: "오늘도 좋은 하루 되세요!",
-    avatar: ""
-  },
-  {
-    id: "2", 
-    name: "박지혜",
-    statusMessage: "카페에서 공부중 📚",
-    avatar: ""
-  },
-  {
-    id: "3",
-    name: "이준호", 
-    statusMessage: "새로운 프로젝트 시작!",
-    avatar: ""
-  },
-  {
-    id: "4",
-    name: "최수진",
-    statusMessage: "오늘은 맑음 ☀️",
-    avatar: ""
-  }
-];
 
 interface FriendsListProps {
   onStartChat: (friendId: string, friendName: string) => void;
@@ -46,8 +23,43 @@ interface FriendsListProps {
 
 const FriendsList = ({ onStartChat, onAddFriend, onFriendProfile }: FriendsListProps) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const filteredFriends = mockFriends.filter(friend =>
+  useEffect(() => {
+    loadFriends();
+  }, []);
+
+  const loadFriends = async () => {
+    try {
+      const { data, error } = await friendsService.getFriends();
+
+      if (error) throw error;
+
+      // Transform FriendWithProfile to Friend interface
+      const transformedFriends: Friend[] = data.map((friendData) => ({
+        id: friendData.friend_profile.id,
+        name: friendData.friend_profile.display_name,
+        statusMessage: friendData.friend_profile.status_message || undefined,
+        avatar: friendData.friend_profile.avatar_url || undefined,
+        userId: friendData.friend_profile.user_id
+      }));
+
+      setFriends(transformedFriends);
+    } catch (error) {
+      console.error('Load friends error:', error);
+      toast({
+        title: "친구 목록 로드 실패",
+        description: "친구 목록을 불러오는 중 오류가 발생했습니다.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredFriends = friends.filter(friend =>
     friend.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -76,7 +88,23 @@ const FriendsList = ({ onStartChat, onAddFriend, onFriendProfile }: FriendsListP
 
       {/* Friends List */}
       <div className="flex-1 overflow-y-auto">
-        {filteredFriends.map((friend) => (
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <p className="text-muted-foreground">친구 목록을 불러오는 중...</p>
+          </div>
+        ) : filteredFriends.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8">
+            <p className="text-muted-foreground mb-4">
+              {searchTerm ? "검색 결과가 없습니다" : "친구가 없습니다"}
+            </p>
+            {!searchTerm && (
+              <Button onClick={onAddFriend} className="bg-primary text-primary-foreground">
+                첫 번째 친구 추가하기
+              </Button>
+            )}
+          </div>
+        ) : (
+          filteredFriends.map((friend) => (
           <div
             key={friend.id}
             className="flex items-center p-4 border-b border-border hover:bg-muted/50 transition-colors cursor-pointer"
@@ -110,7 +138,8 @@ const FriendsList = ({ onStartChat, onAddFriend, onFriendProfile }: FriendsListP
               <MessageCircle size={18} />
             </Button>
           </div>
-        ))}
+        ))
+        )}
       </div>
     </div>
   );

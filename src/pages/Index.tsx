@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import BottomNavigation from "@/components/Layout/BottomNavigation";
 import FriendsList from "@/components/Friends/FriendsList";
 import ChatsList from "@/components/Chats/ChatsList";
@@ -11,35 +12,29 @@ import AddFriend from "@/components/Friends/AddFriend";
 import FriendProfile from "@/components/Friends/FriendProfile";
 
 const Index = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { user, userProfile, loading, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("friends");
-  const [currentChat, setCurrentChat] = useState<{ chatId: string; friendName: string } | null>(null);
+  const [currentChat, setCurrentChat] = useState<{ chatId: string; friendId?: string; friendName: string } | null>(null);
   const [currentScreen, setCurrentScreen] = useState<string>("main");
   const [selectedFriend, setSelectedFriend] = useState<any>(null);
-  const [currentUser, setCurrentUser] = useState({
-    name: "나의 프로필", 
-    statusMessage: "YellowTalk에서 대화해요! 💬",
-    avatar: "",
-    userId: "yellowtalk_user123"
-  });
 
   const handleLogin = () => {
-    setIsLoggedIn(true);
+    // Auth is handled by AuthProvider
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
+  const handleLogout = async () => {
+    await signOut();
     setCurrentChat(null);
     setCurrentScreen("main");
     setActiveTab("friends");
   };
 
   const handleStartChat = (friendId: string, friendName: string) => {
-    setCurrentChat({ chatId: friendId, friendName });
+    setCurrentChat({ chatId: friendId, friendId, friendName });
   };
 
   const handleChatSelect = (chatId: string, friendName: string) => {
-    setCurrentChat({ chatId, friendName });
+    setCurrentChat({ chatId, friendName, friendId: undefined });
   };
 
   const handleBackToList = () => {
@@ -69,15 +64,29 @@ const Index = () => {
   };
 
   const handleSaveProfile = (profile: { name: string; statusMessage: string; avatar: string }) => {
-    setCurrentUser({ ...currentUser, ...profile });
+    // Profile updates are handled by AuthProvider and ProfileEdit component
   };
 
   const handleAddFriendById = (friendId: string) => {
-    // Mock friend addition logic
-    console.log("Adding friend:", friendId);
+    // Friend addition is handled by AddFriend component
+    // Reload friends list when coming back
+    setActiveTab("friends");
   };
 
-  if (!isLoggedIn) {
+  if (loading) {
+    return (
+      <div className="h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-primary rounded-full mx-auto flex items-center justify-center mb-4">
+            <span className="text-2xl">💬</span>
+          </div>
+          <p className="text-muted-foreground">로딩중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || !userProfile) {
     return <Login onLogin={handleLogin} />;
   }
 
@@ -85,8 +94,10 @@ const Index = () => {
   if (currentChat) {
     return (
       <div className="h-screen bg-background">
-        <ChatRoom 
+        <ChatRoom
           friendName={currentChat.friendName}
+          friendId={currentChat.friendId}
+          conversationId={currentChat.friendId ? undefined : currentChat.chatId}
           onBack={handleBackToList}
         />
       </div>
@@ -104,9 +115,14 @@ const Index = () => {
   if (currentScreen === "profileEdit") {
     return (
       <div className="h-screen bg-background">
-        <ProfileEdit 
+        <ProfileEdit
           onBack={handleBackToMain}
-          currentProfile={currentUser}
+          currentProfile={{
+            name: userProfile.display_name,
+            statusMessage: userProfile.status_message || '',
+            avatar: userProfile.avatar_url || '',
+            userId: userProfile.user_id
+          }}
           onSave={handleSaveProfile}
         />
       </div>
@@ -150,11 +166,16 @@ const Index = () => {
         return <ChatsList onChatSelect={handleChatSelect} />;
       case "profile":
         return (
-          <MyProfile 
+          <MyProfile
             onEditProfile={handleEditProfile}
             onSettings={handleSettings}
             onLogout={handleLogout}
-            currentUser={currentUser}
+            currentUser={{
+              name: userProfile.display_name,
+              statusMessage: userProfile.status_message || '',
+              avatar: userProfile.avatar_url || '',
+              userId: userProfile.user_id
+            }}
           />
         );
       default:

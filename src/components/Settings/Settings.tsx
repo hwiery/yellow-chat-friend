@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Bell, UserMinus } from "lucide-react";
 import { useState } from "react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { authService } from "@/services/auth";
 
 interface SettingsProps {
   onBack: () => void;
@@ -12,11 +14,39 @@ interface SettingsProps {
 
 const Settings = ({ onBack, onLogout }: SettingsProps) => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleAccountDeletion = () => {
-    // Mock account deletion
-    alert("계정이 삭제되었습니다.");
-    onLogout();
+  const handleAccountDeletion = async () => {
+    try {
+      setLoading(true);
+      const { error } = await authService.deleteAccount();
+
+      if (error) {
+        toast({
+          title: "탈퇴 실패",
+          description: "계정 삭제 중 오류가 발생했습니다.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "탈퇴 완료",
+        description: "계정이 성공적으로 삭제되었습니다."
+      });
+
+      onLogout();
+    } catch (error) {
+      console.error('Account deletion error:', error);
+      toast({
+        title: "탈퇴 실패",
+        description: "다시 시도해주세요.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -82,11 +112,12 @@ const Settings = ({ onBack, onLogout }: SettingsProps) => {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>취소</AlertDialogCancel>
-                  <AlertDialogAction 
+                  <AlertDialogAction
                     onClick={handleAccountDeletion}
+                    disabled={loading}
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
-                    탈퇴하기
+                    {loading ? "탈퇴 중..." : "탈퇴하기"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
