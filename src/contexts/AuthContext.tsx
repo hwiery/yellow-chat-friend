@@ -88,6 +88,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [])
 
   const fetchUserProfile = async (userId: string) => {
+    const fetchTimeout = setTimeout(() => {
+      console.warn('⏰ AuthContext: Profile fetch timeout, using fallback')
+      createFallbackProfile()
+    }, 8000) // 8 second timeout for profile fetch
+
     try {
       console.log('🔄 AuthContext: fetchUserProfile started for:', userId)
 
@@ -95,94 +100,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single()
+        .maybeSingle() // Use maybeSingle to avoid errors when no results
+
+      clearTimeout(fetchTimeout)
 
       if (error) {
         console.warn('Database error fetching user profile:', error)
+        createFallbackProfile()
+        return
+      }
 
-        // 사용자가 DB에 없다면 자동으로 생성 시도
-        if (error.code === 'PGRST116') {
-          console.log('User not found in database, creating new user...')
-          const { data: { user } } = await supabase.auth.getUser()
-
-          if (user) {
-            const userIdForSearch = `yellowtalk_${Math.random().toString(36).substr(2, 9)}`
-            const displayName = user.user_metadata?.full_name ||
-                               user.user_metadata?.name ||
-                               user.email?.split('@')[0] ||
-                               'User'
-
-            // Create a fallback user profile immediately
-            const fallbackProfile = {
-              id: user.id,
-              email: user.email!,
-              display_name: displayName,
-              user_id: userIdForSearch,
-              status_message: '',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }
-
-            // Try to create in database, but don't wait for it
-            supabase
-              .from('users')
-              .insert(fallbackProfile)
-              .then(({ data: newUser, error: insertError }) => {
-                if (insertError) {
-                  console.warn('Failed to create user profile in DB:', insertError)
-                } else {
-                  console.log('User created successfully in DB:', newUser)
-                }
-              })
-
-            // Set the fallback profile immediately so user can proceed
-            console.log('✅ AuthContext: Using fallback profile for user')
-            setUserProfile(fallbackProfile)
-            setLoading(false)
-            return
-          }
-        }
-
-        // For any other error, create a minimal profile to let user proceed
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const fallbackProfile = {
-            id: user.id,
-            email: user.email!,
-            display_name: user.email?.split('@')[0] || 'User',
-            user_id: `yellowtalk_${Math.random().toString(36).substr(2, 9)}`,
-            status_message: '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-          console.log('✅ AuthContext: Using minimal profile due to error')
-          setUserProfile(fallbackProfile)
-        }
-        setLoading(false)
+      if (!data) {
+        console.log('User not found in database, creating new user...')
+        createFallbackProfile()
         return
       }
 
       console.log('✅ AuthContext: User profile fetched successfully:', data)
       setUserProfile(data)
     } catch (error) {
+      clearTimeout(fetchTimeout)
       console.error('❌ AuthContext: Error in fetchUserProfile:', error)
-      // Even on error, try to create a minimal profile so user can proceed
+      createFallbackProfile()
+    } finally {
+      console.log('🔄 AuthContext: Setting loading to false')
+      setLoading(false)
+    }
+  }
+
+  const createFallbackProfile = async () => {
+    try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        const userIdForSearch = `yellowtalk_${Math.random().toString(36).substr(2, 9)}`
+        const displayName = user.user_metadata?.full_name ||
+                           user.user_metadata?.name ||
+                           user.email?.split('@')[0] ||
+                           'User'
+
         const fallbackProfile = {
           id: user.id,
           email: user.email!,
-          display_name: user.email?.split('@')[0] || 'User',
-          user_id: `yellowtalk_${Math.random().toString(36).substr(2, 9)}`,
+          display_name: displayName,
+          user_id: userIdForSearch,
           status_message: '',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
-        console.log('✅ AuthContext: Using fallback profile after error')
+
+        console.log('✅ AuthContext: Using fallback profile:', fallbackProfile)
         setUserProfile(fallbackProfile)
+
+        // Try to create in database in the background
+        supabase
+          .from('users')
+          .insert(fallbackProfile)
+          .then(({ error: insertError }) => {
+            if (insertError) {
+              console.warn('Failed to save fallback profile to DB:', insertError)
+            } else {
+              console.log('Fallback profile saved to DB successfully')
+            }
+          })
+          .catch(err => console.warn('Error saving fallback profile:', err))
       }
+    } catch (error) {
+      console.error('❌ AuthContext: Error creating fallback profile:', error)
     } finally {
-      console.log('🔄 AuthContext: Setting loading to false')
       setLoading(false)
     }
   }

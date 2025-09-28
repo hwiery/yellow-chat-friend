@@ -28,58 +28,97 @@ export const friendsService = {
 
   async searchUserByUserId(userId: string) {
     try {
+      console.log('🔍 Searching for user with ID:', userId)
+
       const { data, error } = await supabase
         .from('users')
         .select('id, display_name, avatar_url, user_id, status_message')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle() // Use maybeSingle instead of single to avoid errors when no results
 
-      if (error) throw error
+      if (error) {
+        console.error('🚨 Database error in search:', error)
+        throw error
+      }
+
+      if (!data) {
+        console.log('📭 No user found with ID:', userId)
+        return { data: null, error: { message: `No user found with ID: ${userId}` } }
+      }
+
+      console.log('✅ User found:', data)
       return { data, error: null }
     } catch (error) {
-      console.error('Search user error:', error)
+      console.error('❌ Search user error:', error)
       return { data: null, error }
     }
   },
 
   async addFriend(friendUserId: string) {
     try {
+      console.log('👥 Starting add friend process for:', friendUserId)
+
+      // Get current user first
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        console.error('❌ Auth error:', authError)
+        return { data: null, error: { message: 'Not authenticated' } }
+      }
+
+      console.log('✅ Current user authenticated:', user.id)
+
       // First find the user by their user_id
       const { data: friendUser, error: searchError } = await this.searchUserByUserId(friendUserId)
       if (searchError || !friendUser) {
-        throw new Error('User not found')
+        console.error('❌ Friend user not found:', searchError)
+        return { data: null, error: { message: `User with ID "${friendUserId}" not found. Please check the ID and try again.` } }
       }
 
-      // Check if friendship already exists
+      console.log('✅ Friend user found:', friendUser.id)
+
+      // Check if trying to add self
+      if (friendUser.id === user.id) {
+        return { data: null, error: { message: 'You cannot add yourself as a friend' } }
+      }
+
+      // Check if friendship already exists (simplified query)
       const { data: existingFriendship, error: checkError } = await supabase
         .from('friends')
         .select('*')
-        .or(`and(user_id.eq.${supabase.auth.getUser().then(u => u.data.user?.id)},friend_id.eq.${friendUser.id}),and(user_id.eq.${friendUser.id},friend_id.eq.${supabase.auth.getUser().then(u => u.data.user?.id)})`)
+        .eq('user_id', user.id)
+        .eq('friend_id', friendUser.id)
         .maybeSingle()
 
-      if (checkError) throw checkError
-      if (existingFriendship) {
-        throw new Error('Friendship already exists')
+      if (checkError) {
+        console.error('❌ Error checking existing friendship:', checkError)
+        return { data: null, error: { message: 'Error checking friendship status' } }
       }
 
-      // Create friendship
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      if (existingFriendship) {
+        console.log('⚠️ Friendship already exists')
+        return { data: null, error: { message: 'You are already friends with this user' } }
+      }
 
+      console.log('📝 Creating friendship...')
+
+      // Create friendship
       const { data, error } = await supabase
         .from('friends')
         .insert({
           user_id: user.id,
           friend_id: friendUser.id,
-          status: 'accepted' // Direct accept for now, can add pending later
+          status: 'accepted'
         })
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error creating friendship:', error)
+        return { data: null, error: { message: 'Failed to create friendship' } }
+      }
 
       // Also create reverse friendship for bidirectional relationship
-      await supabase
+      const { error: reverseError } = await supabase
         .from('friends')
         .insert({
           user_id: friendUser.id,
@@ -87,10 +126,16 @@ export const friendsService = {
           status: 'accepted'
         })
 
+      if (reverseError) {
+        console.warn('⚠️ Warning: Could not create reverse friendship:', reverseError)
+        // Don't fail the whole operation for this
+      }
+
+      console.log('✅ Friend added successfully!')
       return { data, error: null }
     } catch (error) {
-      console.error('Add friend error:', error)
-      return { data: null, error }
+      console.error('❌ Add friend error:', error)
+      return { data: null, error: { message: 'An unexpected error occurred while adding friend' } }
     }
   },
 

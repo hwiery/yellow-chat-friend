@@ -28,45 +28,67 @@ const AddFriend = ({ onBack, onAddFriend }: AddFriendProps) => {
 
     try {
       setLoading(true);
+      console.log('🔄 AddFriend: Starting friend add process...');
+
       const { data, error } = await friendsService.addFriend(friendId.trim());
 
       if (error) {
-        if (error.message === 'User not found') {
+        console.error('❌ AddFriend: Error received:', error);
+
+        // Handle specific error messages
+        if (error.message?.includes('not found')) {
           toast({
             title: "친구 찾기 실패",
-            description: "존재하지 않는 아이디입니다.",
+            description: `"${friendId.trim()}" 아이디의 사용자를 찾을 수 없습니다.`,
             variant: "destructive"
           });
-        } else if (error.message === 'Friendship already exists') {
+        } else if (error.message?.includes('already friends')) {
           toast({
             title: "이미 친구입니다",
             description: "이미 친구로 추가된 사용자입니다.",
             variant: "destructive"
           });
+        } else if (error.message?.includes('yourself')) {
+          toast({
+            title: "자기 자신은 친구로 추가할 수 없습니다",
+            description: "다른 사용자의 아이디를 입력해주세요.",
+            variant: "destructive"
+          });
+        } else if (error.message?.includes('authenticated')) {
+          toast({
+            title: "로그인이 필요합니다",
+            description: "로그인 후 다시 시도해주세요.",
+            variant: "destructive"
+          });
         } else {
           toast({
             title: "친구 추가 실패",
-            description: "친구 추가 중 오류가 발생했습니다.",
+            description: error.message || "친구 추가 중 오류가 발생했습니다.",
             variant: "destructive"
           });
         }
         return;
       }
 
+      console.log('✅ AddFriend: Success!');
       onAddFriend(friendId);
       toast({
         title: "친구 추가 완료",
-        description: `${friendId}님을 친구로 추가했습니다.`
+        description: `${friendId.trim()}님을 친구로 추가했습니다.`
       });
+
+      // Clear the input and go back
+      setFriendId("");
       onBack();
     } catch (error) {
-      console.error('Add friend error:', error);
+      console.error('❌ AddFriend: Unexpected error:', error);
       toast({
         title: "친구 추가 실패",
-        description: "다시 시도해주세요.",
+        description: "네트워크 오류가 발생했습니다. 다시 시도해주세요.",
         variant: "destructive"
       });
     } finally {
+      console.log('🔄 AddFriend: Clearing loading state');
       setLoading(false);
     }
   };
