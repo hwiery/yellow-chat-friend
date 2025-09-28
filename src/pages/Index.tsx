@@ -10,13 +10,20 @@ import Settings from "@/components/Settings/Settings";
 import ProfileEdit from "@/components/Profile/ProfileEdit";
 import AddFriend from "@/components/Friends/AddFriend";
 import FriendProfile from "@/components/Friends/FriendProfile";
+import AuthDebug from "@/components/Debug/AuthDebug";
 
 const Index = () => {
   const { user, userProfile, loading, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("friends");
   const [currentChat, setCurrentChat] = useState<{ chatId: string; friendId?: string; friendName: string } | null>(null);
   const [currentScreen, setCurrentScreen] = useState<string>("main");
-  const [selectedFriend, setSelectedFriend] = useState<any>(null);
+  const [selectedFriend, setSelectedFriend] = useState<{
+    id: string;
+    display_name: string;
+    user_id: string;
+    status_message?: string;
+    avatar_url?: string;
+  } | null>(null);
 
   const handleLogin = () => {
     // Auth is handled by AuthProvider
@@ -46,7 +53,13 @@ const Index = () => {
     setCurrentScreen("addFriend");
   };
 
-  const handleFriendProfile = (friend: any) => {
+  const handleFriendProfile = (friend: {
+    id: string;
+    display_name: string;
+    user_id: string;
+    status_message?: string;
+    avatar_url?: string;
+  }) => {
     setSelectedFriend(friend);
     setCurrentScreen("friendProfile");
   };
@@ -193,6 +206,7 @@ const Index = () => {
     <div className="h-screen bg-background pb-16">
       {renderActiveTab()}
       <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <AuthDebug />
     </div>
   );
 };

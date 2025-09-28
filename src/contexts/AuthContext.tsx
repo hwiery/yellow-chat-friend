@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session } from '@supabase/supabase-js'
+import { User, Session, AuthResponse } from '@supabase/supabase-js'
 import { supabase, User as AppUser } from '@/lib/supabase'
 
 interface AuthContextType {
@@ -7,9 +7,9 @@ interface AuthContextType {
   userProfile: AppUser | null
   session: Session | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<any>
-  signUp: (email: string, password: string, displayName: string) => Promise<any>
-  signInWithGoogle: () => Promise<any>
+  signIn: (email: string, password: string) => Promise<AuthResponse>
+  signUp: (email: string, password: string, displayName: string) => Promise<AuthResponse>
+  signInWithGoogle: () => Promise<{data: any, error: any}>
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<AppUser>) => Promise<void>
 }
@@ -46,10 +46,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.id)
       setSession(session)
       setUser(session?.user ?? null)
 
-      if (session?.user) {
+      if (event === 'SIGNED_IN' && session?.user) {
+        console.log('User signed in, fetching profile...')
+        await fetchUserProfile(session.user.id)
+      } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out')
+        setUserProfile(null)
+        setLoading(false)
+      } else if (session?.user) {
         await fetchUserProfile(session.user.id)
       } else {
         setUserProfile(null)
@@ -62,6 +70,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      setLoading(true)
+      console.log('Fetching user profile for:', userId)
+
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -70,17 +81,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Database error fetching user profile:', error)
+
         // 사용자가 DB에 없다면 자동으로 생성 시도
         if (error.code === 'PGRST116') {
+          console.log('User not found in database, creating new user...')
           const { data: { user } } = await supabase.auth.getUser()
+
           if (user) {
             const userIdForSearch = `yellowtalk_${Math.random().toString(36).substr(2, 9)}`
+            const displayName = user.user_metadata?.full_name ||
+                               user.user_metadata?.name ||
+                               user.email?.split('@')[0] ||
+                               'User'
+
+            console.log('Creating user with data:', {
+              id: user.id,
+              email: user.email,
+              display_name: displayName,
+              user_id: userIdForSearch
+            })
+
+            // 데이터베이스 트리거가 처리하도록 간단한 insert 수행
             const { data: newUser, error: insertError } = await supabase
               .from('users')
               .insert({
                 id: user.id,
                 email: user.email!,
-                display_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+                display_name: displayName,
                 user_id: userIdForSearch,
                 status_message: '',
               })
@@ -88,18 +115,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               .single()
 
             if (!insertError && newUser) {
+              console.log('User created successfully:', newUser)
               setUserProfile(newUser)
+              setLoading(false)
               return
             } else {
               console.error('Failed to create user profile:', insertError)
+
+              // 재시도: 트리거가 이미 생성했을 수 있음
+              const { data: existingUser } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single()
+
+              if (existingUser) {
+                console.log('User found after insert attempt:', existingUser)
+                setUserProfile(existingUser)
+                setLoading(false)
+                return
+              }
             }
           }
         }
-        throw error
+
+        // 다른 오류의 경우 로딩 상태는 유지하되 에러 로그
+        console.error('Unable to fetch or create user profile:', error)
+        setLoading(false)
+        return
       }
+
+      console.log('User profile fetched successfully:', data)
       setUserProfile(data)
     } catch (error) {
-      console.error('Error fetching user profile:', error)
+      console.error('Error in fetchUserProfile:', error)
     } finally {
       setLoading(false)
     }
@@ -129,13 +178,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const signInWithGoogle = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    })
-    return { data, error }
+    try {
+      console.log('Starting Google OAuth...')
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      })
+
+      if (error) {
+        console.error('Google OAuth error:', error)
+      } else {
+        console.log('Google OAuth initiated successfully')
+      }
+
+      return { data, error }
+    } catch (error) {
+      console.error('Error in signInWithGoogle:', error)
+      return { data: null, error: error as any }
+    }
   }
 
   const signOut = async () => {

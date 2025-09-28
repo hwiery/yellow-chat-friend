@@ -2,7 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/services/auth";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { parseAuthError, clearAuthErrorFromUrl, getAuthErrorMessage, hasAuthError } from "@/utils/auth";
+import AuthDebug from "@/components/Debug/AuthDebug";
 
 interface LoginProps {
   onLogin: () => void;
@@ -12,12 +14,33 @@ const Login = ({ onLogin }: LoginProps) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  // Check for auth errors on component mount
+  useEffect(() => {
+    if (hasAuthError()) {
+      const authError = parseAuthError();
+      if (authError) {
+        console.error('Authentication error detected:', authError);
+        toast({
+          title: "로그인 실패",
+          description: getAuthErrorMessage(authError),
+          variant: "destructive"
+        });
+
+        // Clear error parameters from URL
+        clearAuthErrorFromUrl();
+      }
+    }
+  }, [toast]);
+
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
+      console.log('Initiating Google login...');
+
       const { data, error } = await authService.signInWithGoogle();
 
       if (error) {
+        console.error('Google login error:', error);
         toast({
           title: "로그인 실패",
           description: "Google 로그인 중 오류가 발생했습니다.",
@@ -26,11 +49,8 @@ const Login = ({ onLogin }: LoginProps) => {
         return;
       }
 
-      // The onLogin will be called by the AuthProvider when auth state changes
-      toast({
-        title: "로그인 성공",
-        description: "환영합니다!"
-      });
+      console.log('Google login initiated successfully');
+      // Note: Don't show success toast here as user will be redirected
     } catch (error) {
       console.error('Login error:', error);
       toast({
@@ -79,6 +99,7 @@ const Login = ({ onLogin }: LoginProps) => {
           </CardContent>
         </Card>
       </div>
+      <AuthDebug />
     </div>
   );
 };
