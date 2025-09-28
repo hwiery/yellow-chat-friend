@@ -14,10 +14,6 @@ import AuthDebug from "@/components/Debug/AuthDebug";
 
 const Index = () => {
   const { user, userProfile, loading, signOut } = useAuth();
-
-  // Debug mode - check for URL parameter to bypass auth
-  const urlParams = new URLSearchParams(window.location.search);
-  const debugMode = urlParams.get('debug') === 'true';
   const [activeTab, setActiveTab] = useState("friends");
   const [currentChat, setCurrentChat] = useState<{ chatId: string; friendId?: string; friendName: string } | null>(null);
   const [currentScreen, setCurrentScreen] = useState<string>("main");
@@ -90,7 +86,7 @@ const Index = () => {
     setActiveTab("friends");
   };
 
-  if (loading && !debugMode) {
+  if (loading) {
     return (
       <div className="h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -98,27 +94,6 @@ const Index = () => {
             <span className="text-2xl">💬</span>
           </div>
           <p className="text-muted-foreground">로딩중...</p>
-          <p className="text-xs text-muted-foreground mt-2">
-            너무 오래 걸리면 <a href="?debug=true" className="underline">여기를 클릭</a>하세요
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Debug mode - show login regardless
-  if (debugMode) {
-    return (
-      <div className="h-screen bg-background flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="w-16 h-16 bg-orange-500 rounded-full mx-auto flex items-center justify-center mb-4">
-            <span className="text-2xl">🛠️</span>
-          </div>
-          <h1 className="text-xl font-semibold mb-2">디버그 모드</h1>
-          <p className="text-muted-foreground mb-4">
-            인증을 우회하여 로그인 화면을 표시합니다.
-          </p>
-          <Login onLogin={handleLogin} />
         </div>
       </div>
     );

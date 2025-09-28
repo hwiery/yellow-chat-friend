@@ -37,7 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('⏰ AuthContext: Loading timeout reached, forcing loading to false')
         setLoading(false)
       }
-    }, 10000) // 10 second timeout
+    }, 5000) // 5 second timeout
 
     return () => clearTimeout(timeout)
   }, [loading])
@@ -90,7 +90,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchUserProfile = async (userId: string) => {
     try {
       console.log('🔄 AuthContext: fetchUserProfile started for:', userId)
-      setLoading(true)
 
       const { data, error } = await supabase
         .from('users')
@@ -99,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single()
 
       if (error) {
-        console.error('Database error fetching user profile:', error)
+        console.warn('Database error fetching user profile:', error)
 
         // 사용자가 DB에 없다면 자동으로 생성 시도
         if (error.code === 'PGRST116') {
@@ -113,53 +112,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                                user.email?.split('@')[0] ||
                                'User'
 
-            console.log('Creating user with data:', {
+            // Create a fallback user profile immediately
+            const fallbackProfile = {
               id: user.id,
-              email: user.email,
+              email: user.email!,
               display_name: displayName,
-              user_id: userIdForSearch
-            })
-
-            // 데이터베이스 트리거가 처리하도록 간단한 insert 수행
-            const { data: newUser, error: insertError } = await supabase
-              .from('users')
-              .insert({
-                id: user.id,
-                email: user.email!,
-                display_name: displayName,
-                user_id: userIdForSearch,
-                status_message: '',
-              })
-              .select()
-              .single()
-
-            if (!insertError && newUser) {
-              console.log('User created successfully:', newUser)
-              setUserProfile(newUser)
-              setLoading(false)
-              return
-            } else {
-              console.error('Failed to create user profile:', insertError)
-
-              // 재시도: 트리거가 이미 생성했을 수 있음
-              const { data: existingUser } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', userId)
-                .single()
-
-              if (existingUser) {
-                console.log('User found after insert attempt:', existingUser)
-                setUserProfile(existingUser)
-                setLoading(false)
-                return
-              }
+              user_id: userIdForSearch,
+              status_message: '',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
             }
+
+            // Try to create in database, but don't wait for it
+            supabase
+              .from('users')
+              .insert(fallbackProfile)
+              .then(({ data: newUser, error: insertError }) => {
+                if (insertError) {
+                  console.warn('Failed to create user profile in DB:', insertError)
+                } else {
+                  console.log('User created successfully in DB:', newUser)
+                }
+              })
+
+            // Set the fallback profile immediately so user can proceed
+            console.log('✅ AuthContext: Using fallback profile for user')
+            setUserProfile(fallbackProfile)
+            setLoading(false)
+            return
           }
         }
 
-        // 다른 오류의 경우 로딩 상태는 유지하되 에러 로그
-        console.error('Unable to fetch or create user profile:', error)
+        // For any other error, create a minimal profile to let user proceed
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const fallbackProfile = {
+            id: user.id,
+            email: user.email!,
+            display_name: user.email?.split('@')[0] || 'User',
+            user_id: `yellowtalk_${Math.random().toString(36).substr(2, 9)}`,
+            status_message: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          console.log('✅ AuthContext: Using minimal profile due to error')
+          setUserProfile(fallbackProfile)
+        }
         setLoading(false)
         return
       }
@@ -168,7 +166,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserProfile(data)
     } catch (error) {
       console.error('❌ AuthContext: Error in fetchUserProfile:', error)
-      setLoading(false)
+      // Even on error, try to create a minimal profile so user can proceed
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const fallbackProfile = {
+          id: user.id,
+          email: user.email!,
+          display_name: user.email?.split('@')[0] || 'User',
+          user_id: `yellowtalk_${Math.random().toString(36).substr(2, 9)}`,
+          status_message: '',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        console.log('✅ AuthContext: Using fallback profile after error')
+        setUserProfile(fallbackProfile)
+      }
     } finally {
       console.log('🔄 AuthContext: Setting loading to false')
       setLoading(false)
