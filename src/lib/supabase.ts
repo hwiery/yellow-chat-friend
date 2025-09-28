@@ -4,22 +4,33 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 // Create a mock client for development/fallback
-const createMockClient = () => ({
-  auth: {
-    getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-    signInWithPassword: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
-    signUp: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
-    signInWithOAuth: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
-    signOut: () => Promise.resolve({ error: null }),
-    getUser: () => Promise.resolve({ data: { user: null }, error: null })
-  },
-  from: () => ({
-    select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }) }) }),
-    insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }) }) }),
-    update: () => ({ eq: () => Promise.resolve({ error: { message: 'Supabase not configured' } }) })
-  })
-})
+const createMockClient = () => {
+  console.warn('🚨 Using mock Supabase client - environment variables not configured')
+  return {
+    auth: {
+      getSession: () => {
+        console.log('🔄 Mock client: getSession called')
+        return Promise.resolve({ data: { session: null }, error: null })
+      },
+      onAuthStateChange: (callback: any) => {
+        console.log('🔄 Mock client: onAuthStateChange called')
+        // Immediately call the callback with no session
+        setTimeout(() => callback('SIGNED_OUT', null), 100)
+        return { data: { subscription: { unsubscribe: () => console.log('🔄 Mock client: unsubscribed') } } }
+      },
+      signInWithPassword: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+      signUp: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+      signInWithOAuth: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
+      signOut: () => Promise.resolve({ error: null }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null })
+    },
+    from: () => ({
+      select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }) }) }),
+      insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }) }) }),
+      update: () => ({ eq: () => Promise.resolve({ error: { message: 'Supabase not configured' } }) })
+    })
+  }
+}
 
 let supabase: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 

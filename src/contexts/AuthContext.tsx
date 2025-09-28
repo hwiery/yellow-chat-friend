@@ -30,16 +30,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Add timeout for loading state
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn('⏰ AuthContext: Loading timeout reached, forcing loading to false')
+        setLoading(false)
+      }
+    }, 10000) // 10 second timeout
+
+    return () => clearTimeout(timeout)
+  }, [loading])
+
+  useEffect(() => {
+    console.log('🔄 AuthContext: Starting initialization...')
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('🔄 AuthContext: Initial session retrieved:', session?.user?.id || 'No user')
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) {
+        console.log('🔄 AuthContext: User found, fetching profile...')
         fetchUserProfile(session.user.id)
       } else {
+        console.log('🔄 AuthContext: No user, setting loading to false')
         setLoading(false)
       }
+    }).catch((error) => {
+      console.error('❌ AuthContext: Error getting initial session:', error)
+      setLoading(false)
     })
 
     // Listen for auth changes
@@ -70,8 +89,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      console.log('🔄 AuthContext: fetchUserProfile started for:', userId)
       setLoading(true)
-      console.log('Fetching user profile for:', userId)
 
       const { data, error } = await supabase
         .from('users')
@@ -145,11 +164,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return
       }
 
-      console.log('User profile fetched successfully:', data)
+      console.log('✅ AuthContext: User profile fetched successfully:', data)
       setUserProfile(data)
     } catch (error) {
-      console.error('Error in fetchUserProfile:', error)
+      console.error('❌ AuthContext: Error in fetchUserProfile:', error)
+      setLoading(false)
     } finally {
+      console.log('🔄 AuthContext: Setting loading to false')
       setLoading(false)
     }
   }
