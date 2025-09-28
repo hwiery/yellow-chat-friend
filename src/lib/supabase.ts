@@ -63,10 +63,11 @@ export interface User {
 
 export interface Friend {
   id: string
-  user_id: string
-  friend_id: string
-  status: 'pending' | 'accepted' | 'blocked'
+  owner_id: string        // 친구를 추가한 사람 (소유자)
+  friend_id: string       // 친구로 추가된 사람
+  status: 'active' | 'blocked'  // 상태 변경
   created_at: string
+  updated_at: string
 }
 
 export interface Conversation {

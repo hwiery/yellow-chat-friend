@@ -154,7 +154,7 @@ const AddFriend = ({ onBack, onAddFriend }: AddFriendProps) => {
               disabled={!friendId.trim() || loading}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {loading ? "추가 중..." : "친구 추가"}
+              {loading ? "추가 중..." : "내 친구 리스트에 추가"}
             </Button>
 
             <Button
@@ -167,11 +167,13 @@ const AddFriend = ({ onBack, onAddFriend }: AddFriendProps) => {
           </div>
 
           <div className="mt-8 p-4 bg-muted/30 rounded-lg">
-            <h3 className="font-medium text-foreground mb-2">친구 찾기 팁</h3>
+            <h3 className="font-medium text-foreground mb-2">새로운 친구 시스템</h3>
             <p className="text-sm text-muted-foreground">
-              친구의 YellowTalk 아이디를 정확히 입력해주세요.
+              • 친구 추가는 단방향입니다
               <br />
-              아이디는 프로필에서 확인할 수 있습니다.
+              • 내가 추가한 사람만 내 친구 리스트에 표시됩니다
+              <br />
+              • 상대방도 나를 친구로 추가해야 서로 친구가 됩니다
             </p>
           </div>
         </div>

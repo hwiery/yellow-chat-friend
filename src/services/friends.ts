@@ -25,6 +25,18 @@ export const friendsService = {
 
   async getFriends() {
     try {
+      console.log('🔍 Getting current user\'s friends list...')
+
+      // 현재 로그인한 사용자 확인
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        console.error('❌ Not authenticated:', authError)
+        return { data: [], error: { message: 'Not authenticated' } }
+      }
+
+      console.log('✅ Current user:', user.id)
+
+      // 해당 사용자가 추가한 친구들만 조회 (owner_id 기준)
       const { data, error } = await supabase
         .from('friends')
         .select(`
@@ -37,13 +49,19 @@ export const friendsService = {
             status_message
           )
         `)
-        .eq('status', 'accepted')
+        .eq('owner_id', user.id)  // 핵심: 현재 사용자가 추가한 친구들만
+        .eq('status', 'active')   // active 상태만
         .returns<FriendWithProfile[]>()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Database error getting friends:', error)
+        return { data: [], error }
+      }
+
+      console.log(`✅ Found ${data?.length || 0} friends for user ${user.id}`)
       return { data: data || [], error: null }
     } catch (error) {
-      console.error('Get friends error:', error)
+      console.error('❌ Get friends error:', error)
       return { data: [], error }
     }
   },
@@ -141,12 +159,12 @@ export const friendsService = {
         return { data: null, error: { message: 'You cannot add yourself as a friend' } }
       }
 
-      // Check if friendship already exists (simplified query)
+      // Check if current user already added this person as friend
       const { data: existingFriendship, error: checkError } = await supabase
         .from('friends')
         .select('*')
-        .eq('user_id', user.id)
-        .eq('friend_id', friendUser.id)
+        .eq('owner_id', user.id)      // 현재 사용자가 소유자
+        .eq('friend_id', friendUser.id)  // 추가하려는 친구
         .maybeSingle()
 
       if (checkError) {
@@ -155,40 +173,26 @@ export const friendsService = {
       }
 
       if (existingFriendship) {
-        console.log('⚠️ Friendship already exists')
-        return { data: null, error: { message: 'You are already friends with this user' } }
+        console.log('⚠️ You already added this user as friend')
+        return { data: null, error: { message: 'You already added this user as friend' } }
       }
 
-      console.log('📝 Creating friendship...')
+      console.log('📝 Adding user to your friends list...')
 
-      // Create friendship
+      // 단방향 친구 추가: 현재 사용자의 친구 리스트에만 추가
       const { data, error } = await supabase
         .from('friends')
         .insert({
-          user_id: user.id,
-          friend_id: friendUser.id,
-          status: 'accepted'
+          owner_id: user.id,      // 친구를 추가하는 사람 (소유자)
+          friend_id: friendUser.id,  // 친구로 추가되는 사람
+          status: 'active'
         })
         .select()
         .single()
 
       if (error) {
-        console.error('❌ Error creating friendship:', error)
-        return { data: null, error: { message: 'Failed to create friendship' } }
-      }
-
-      // Also create reverse friendship for bidirectional relationship
-      const { error: reverseError } = await supabase
-        .from('friends')
-        .insert({
-          user_id: friendUser.id,
-          friend_id: user.id,
-          status: 'accepted'
-        })
-
-      if (reverseError) {
-        console.warn('⚠️ Warning: Could not create reverse friendship:', reverseError)
-        // Don't fail the whole operation for this
+        console.error('❌ Error adding friend:', error)
+        return { data: null, error: { message: 'Failed to add friend' } }
       }
 
       console.log('✅ Friend added successfully!')
@@ -201,39 +205,102 @@ export const friendsService = {
 
   async removeFriend(friendId: string) {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      console.log('🗑️ Removing friend:', friendId)
 
-      // Remove both directions of friendship
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        console.error('❌ Not authenticated:', authError)
+        return { error: { message: 'Not authenticated' } }
+      }
+
+      // 현재 사용자의 친구 리스트에서만 제거 (단방향)
       const { error } = await supabase
         .from('friends')
         .delete()
-        .or(`and(user_id.eq.${user.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${user.id})`)
+        .eq('owner_id', user.id)     // 현재 사용자가 소유자
+        .eq('friend_id', friendId)   // 제거할 친구
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error removing friend:', error)
+        return { error }
+      }
+
+      console.log('✅ Friend removed from your list')
       return { error: null }
     } catch (error) {
-      console.error('Remove friend error:', error)
+      console.error('❌ Remove friend error:', error)
       return { error }
     }
   },
 
   async blockFriend(friendId: string) {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      console.log('🚫 Blocking friend:', friendId)
 
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        console.error('❌ Not authenticated:', authError)
+        return { error: { message: 'Not authenticated' } }
+      }
+
+      // 현재 사용자의 친구를 차단 상태로 변경
       const { error } = await supabase
         .from('friends')
         .update({ status: 'blocked' })
-        .eq('user_id', user.id)
-        .eq('friend_id', friendId)
+        .eq('owner_id', user.id)     // 현재 사용자가 소유자
+        .eq('friend_id', friendId)   // 차단할 친구
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error blocking friend:', error)
+        return { error }
+      }
+
+      console.log('✅ Friend blocked')
       return { error: null }
     } catch (error) {
-      console.error('Block friend error:', error)
+      console.error('❌ Block friend error:', error)
       return { error }
+    }
+  },
+
+  // 새로운 함수: 상호 친구 확인 (A가 B를 친구로 추가했고, B도 A를 친구로 추가했는지)
+  async checkMutualFriendship(friendId: string) {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        return { isMutual: false, error: { message: 'Not authenticated' } }
+      }
+
+      // 현재 사용자가 상대방을 친구로 추가했는지 확인
+      const { data: myFriend } = await supabase
+        .from('friends')
+        .select('*')
+        .eq('owner_id', user.id)
+        .eq('friend_id', friendId)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      // 상대방이 현재 사용자를 친구로 추가했는지 확인
+      const { data: theirFriend } = await supabase
+        .from('friends')
+        .select('*')
+        .eq('owner_id', friendId)
+        .eq('friend_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      const isMutual = !!(myFriend && theirFriend)
+      console.log(`🔍 Mutual friendship check: ${isMutual}`)
+
+      return {
+        isMutual,
+        iAddedThem: !!myFriend,
+        theyAddedMe: !!theirFriend,
+        error: null
+      }
+    } catch (error) {
+      console.error('❌ Check mutual friendship error:', error)
+      return { isMutual: false, error }
     }
   }
 }
