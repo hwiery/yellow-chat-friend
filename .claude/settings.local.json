@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/projects/Youtube-projects/yellow_chat_app/lib/**)",
+      "Bash(flutter run:*)",
+      "Read(//d/projects/Youtube-projects/yellow_chat_app/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

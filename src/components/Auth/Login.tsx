@@ -5,6 +5,7 @@ import { authService } from "@/services/auth";
 import { useState, useEffect } from "react";
 import { parseAuthError, clearAuthErrorFromUrl, getAuthErrorMessage, hasAuthError } from "@/utils/auth";
 import AuthDebug from "@/components/Debug/AuthDebug";
+import EnvStatus from "@/components/Debug/EnvStatus";
 
 interface LoginProps {
   onLogin: () => void;
@@ -98,6 +99,7 @@ const Login = ({ onLogin }: LoginProps) => {
             </div>
           </CardContent>
         </Card>
+        <EnvStatus />
       </div>
       <AuthDebug />
     </div>

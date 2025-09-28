@@ -9,7 +9,7 @@ interface AuthContextType {
   loading: boolean
   signIn: (email: string, password: string) => Promise<AuthResponse>
   signUp: (email: string, password: string, displayName: string) => Promise<AuthResponse>
-  signInWithGoogle: () => Promise<{data: any, error: any}>
+  signInWithGoogle: () => Promise<{data: any, error: any}> // eslint-disable-line @typescript-eslint/no-explicit-any
   signOut: () => Promise<void>
   updateProfile: (updates: Partial<AppUser>) => Promise<void>
 }
@@ -200,7 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { data, error }
     } catch (error) {
       console.error('Error in signInWithGoogle:', error)
-      return { data: null, error: error as any }
+      return { data: null, error: error as any } // eslint-disable-line @typescript-eslint/no-explicit-any
     }
   }
 
