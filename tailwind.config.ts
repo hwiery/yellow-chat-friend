@@ -23,6 +23,11 @@ export default {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
         },
+        "yellow-primary": "hsl(var(--yellow-primary))",
+        "yellow-light": "hsl(var(--yellow-light))",
+        "chat-received": "hsl(var(--chat-received))",
+        "chat-sent": "hsl(var(--chat-sent))",
+        "nav-background": "hsl(var(--nav-background))",
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
