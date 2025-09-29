@@ -63,30 +63,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })
 
     // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.id)
-      setSession(session)
-      setUser(session?.user ?? null)
+    let subscription: { unsubscribe?: () => void } | null = null
 
-      if (event === 'SIGNED_IN' && session?.user && !fetchingProfile) {
-        console.log('User signed in, fetching profile...')
-        await fetchUserProfile(session.user.id)
-      } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out')
-        setUserProfile(null)
-        setFetchingProfile(false)
-        setLoading(false)
-      } else if (session?.user && !fetchingProfile) {
-        await fetchUserProfile(session.user.id)
-      } else {
-        setUserProfile(null)
-        setLoading(false)
+    try {
+      const authSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('Auth state change:', event, session?.user?.id)
+        setSession(session)
+        setUser(session?.user ?? null)
+
+        if (event === 'SIGNED_IN' && session?.user && !fetchingProfile) {
+          console.log('User signed in, fetching profile...')
+          await fetchUserProfile(session.user.id)
+        } else if (event === 'SIGNED_OUT') {
+          console.log('User signed out')
+          setUserProfile(null)
+          setFetchingProfile(false)
+          setLoading(false)
+        } else if (session?.user && !fetchingProfile) {
+          await fetchUserProfile(session.user.id)
+        } else {
+          setUserProfile(null)
+          setLoading(false)
+        }
+      })
+
+      subscription = authSubscription?.data?.subscription || null
+    } catch (error) {
+      console.error('❌ AuthContext: Error setting up auth state listener:', error)
+      setLoading(false)
+    }
+
+    return () => {
+      try {
+        if (subscription?.unsubscribe && typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe()
+        }
+      } catch (error) {
+        console.warn('⚠️ AuthContext: Error unsubscribing from auth state changes:', error)
       }
-    })
-
-    return () => subscription.unsubscribe()
+    }
   }, [])
 
   const fetchUserProfile = async (userId: string) => {
