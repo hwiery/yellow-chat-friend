@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { messagesService } from "@/services/messages";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import type { Message as DBMessage } from "@/lib/supabase";
 
 interface Message {
   id: string;
@@ -95,7 +96,7 @@ const ChatRoom = ({ friendName, friendId, conversationId, onBack }: ChatRoomProp
       const { data, error } = await messagesService.getMessages(currentConversationId);
       if (error) throw error;
 
-      const transformedMessages: Message[] = data.map((msg: any) => ({
+      const transformedMessages: Message[] = data.map((msg: DBMessage) => ({
         id: msg.id,
         text: msg.content,
         timestamp: new Date(msg.created_at).toLocaleTimeString('ko-KR', {

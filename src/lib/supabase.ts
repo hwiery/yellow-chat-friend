@@ -12,7 +12,7 @@ const createMockClient = () => {
         console.log('🔄 Mock client: getSession called')
         return Promise.resolve({ data: { session: null }, error: null })
       },
-      onAuthStateChange: (callback: any) => {
+      onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
         console.log('🔄 Mock client: onAuthStateChange called')
         // Immediately call the callback with no session
         setTimeout(() => callback('SIGNED_OUT', null), 100)

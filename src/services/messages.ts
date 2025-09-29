@@ -42,7 +42,7 @@ export const messagesService = {
         other_participant: conv.participant_1 === user.id
           ? conv.participant_2_profile
           : conv.participant_1_profile,
-        messages: conv.messages.sort((a: any, b: any) =>
+        messages: conv.messages.sort((a: { created_at: string }, b: { created_at: string }) =>
           new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         )
       })) || []

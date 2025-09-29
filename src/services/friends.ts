@@ -71,7 +71,7 @@ export const friendsService = {
       console.log('🔍 Searching for user with ID:', userId)
 
       // First try exact match
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .select('id, display_name, avatar_url, user_id, status_message')
         .eq('user_id', userId)

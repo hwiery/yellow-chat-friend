@@ -5,6 +5,7 @@ import { Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { messagesService } from "@/services/messages";
+import type { ConversationWithMessages } from "@/lib/supabase";
 
 interface Chat {
   id: string;
@@ -37,7 +38,7 @@ const ChatsList = ({ onChatSelect }: ChatsListProps) => {
       if (error) throw error;
 
       // Transform conversations to Chat interface
-      const transformedChats: Chat[] = data.map((conv: any) => {
+      const transformedChats: Chat[] = data.map((conv: ConversationWithMessages) => {
         const lastMessage = conv.messages[conv.messages.length - 1];
         return {
           id: conv.id,
