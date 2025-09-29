@@ -56,8 +56,19 @@ export const messagesService = {
 
   async getOrCreateConversation(friendId: string) {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      console.log('💬 Getting or creating conversation with friend:', friendId)
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) {
+        console.error('❌ Auth error in getOrCreateConversation:', authError)
+        throw authError
+      }
+      if (!user) {
+        console.error('❌ No user found in getOrCreateConversation')
+        throw new Error('Not authenticated')
+      }
+
+      console.log('✅ User authenticated for conversation:', user.id)
 
       // Check if conversation exists
       const { data: existingConv, error: searchError } = await supabase
@@ -66,11 +77,17 @@ export const messagesService = {
         .or(`and(participant_1.eq.${user.id},participant_2.eq.${friendId}),and(participant_1.eq.${friendId},participant_2.eq.${user.id})`)
         .maybeSingle()
 
-      if (searchError) throw searchError
+      if (searchError) {
+        console.error('❌ Error searching for existing conversation:', searchError)
+        throw searchError
+      }
 
       if (existingConv) {
+        console.log('✅ Found existing conversation:', existingConv.id)
         return { data: existingConv, error: null }
       }
+
+      console.log('📝 Creating new conversation between:', user.id, 'and', friendId)
 
       // Create new conversation
       const { data, error } = await supabase
@@ -83,10 +100,15 @@ export const messagesService = {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Database error creating conversation:', error)
+        throw error
+      }
+
+      console.log('✅ Conversation created successfully:', data.id)
       return { data, error: null }
     } catch (error) {
-      console.error('Get or create conversation error:', error)
+      console.error('❌ Get or create conversation error:', error)
       return { data: null, error }
     }
   },
@@ -116,8 +138,33 @@ export const messagesService = {
 
   async sendMessage(conversationId: string, content: string, messageType: 'text' | 'image' | 'emoji' = 'text', imageUrl?: string) {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      console.log('📤 Sending message:', { conversationId, content, messageType, imageUrl })
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError) {
+        console.error('❌ Auth error in sendMessage:', authError)
+        throw authError
+      }
+      if (!user) {
+        console.error('❌ No user found in sendMessage')
+        throw new Error('Not authenticated')
+      }
+
+      console.log('✅ User authenticated for message sending:', user.id)
+
+      // Check if conversation exists
+      const { data: conversation, error: convError } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .single()
+
+      if (convError || !conversation) {
+        console.error('❌ Conversation not found:', convError)
+        throw new Error('Conversation not found')
+      }
+
+      console.log('✅ Conversation found:', conversation.id)
 
       const { data, error } = await supabase
         .from('messages')
@@ -131,10 +178,15 @@ export const messagesService = {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Database error sending message:', error)
+        throw error
+      }
+
+      console.log('✅ Message sent successfully:', data)
       return { data, error: null }
     } catch (error) {
-      console.error('Send message error:', error)
+      console.error('❌ Send message error:', error)
       return { data: null, error }
     }
   },

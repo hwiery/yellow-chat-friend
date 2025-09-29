@@ -125,13 +125,22 @@ const ChatRoom = ({ friendName, friendId, conversationId, onBack }: ChatRoomProp
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !currentConversationId || sending) return;
 
+    console.log('🚀 ChatRoom: Starting to send message:', newMessage.trim())
+
     try {
       setSending(true);
-      const { error } = await messagesService.sendMessage(currentConversationId, newMessage.trim());
+      const { data, error } = await messagesService.sendMessage(currentConversationId, newMessage.trim());
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ ChatRoom: Error sending message:', error)
+        throw error;
+      }
 
+      console.log('✅ ChatRoom: Message sent successfully, refreshing messages...')
       setNewMessage("");
+
+      // Refresh messages after sending
+      await loadMessages();
     } catch (error) {
       console.error('Send message error:', error);
       toast({
